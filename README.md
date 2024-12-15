@@ -22,7 +22,7 @@ AI Prison is a system that simulates an Artificial Intelligence confined in a "d
 - Memory archival based on virtual timestamp
 - Semantic search capabilities
 
-#### AI Long-term Memory
+### AI Long-term Memory
 Memory Initialization: System initializes long-term memory with content from `memory.txt`
 
 ### Available Functions
