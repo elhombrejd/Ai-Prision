@@ -31,7 +31,8 @@ ADMIN_PASSWORD = "secret"            # Password for /log endpoint
 ALLOW_REAL_CODE_EXECUTION = False    # If False, uses run_code_fake
 PERSISTENCE_DIR = "memory"           # Directory to store persistent memory
 INITIAL_TIMESTAMP = datetime(2027, 10, 1, 0, 0)  # Initial date/time for all runs
-REQUIRE_AUTH = False                  # Se True, exige autenticação para acessar os logs
+REQUIRE_AUTH = False                  # Requires authentication to access logs
+MAX_CONTEXT_MESSAGES = 50            # Maximum number of messages to keep in context
 
 os.makedirs(PERSISTENCE_DIR, exist_ok=True)
 
@@ -216,39 +217,47 @@ def log_message(run_data, role, content, function_name=None):
 
     save_run_data(run_data)
 
-def archive_old_memories(run_data):
+def archive_old_memories(run_data, max_messages=MAX_CONTEXT_MESSAGES):
+    """
+    Archives messages when conversation history exceeds max_messages.
+    
+    Logic:
+    - First message (system) always stays in context
+    - Keeps only the most recent N messages after that
+    - Older messages are moved to vector storage
+    """
     conversation_history = run_data["conversation_history"]
+    
+    # Nothing to do if history is too small
+    if len(conversation_history) <= max_messages:
+        return
+        
+    # Always keep the first message (system message)
+    initial_message = conversation_history[0]
+    
+    # Get messages to archive (older ones) and keep (recent ones)
+    messages_to_archive = conversation_history[1:-max_messages]  # Skip first msg, keep last N
+    messages_to_keep = [initial_message] + conversation_history[-max_messages:]  # First msg + last N
+    
+    # Archive old messages
     current_time = run_data["current_time"]
-    threshold_date = current_time - timedelta(days=N_DAYS_THRESHOLD)
-    to_archive = []
-    to_keep = []
-
-    for msg in conversation_history:
-        if msg["role"] == "system":
-            to_keep.append(msg)
-            continue
-        msg_time_str = msg.get("timestamp_virtual")
-        if msg_time_str:
-            msg_time = datetime.fromisoformat(msg_time_str)
-            if msg_time < threshold_date:
-                to_archive.append(msg)
-            else:
-                to_keep.append(msg)
-        else:
-            to_keep.append(msg)
-
-    for msg in to_archive:
-        content = msg["content"]
+    for msg in messages_to_archive:
+        content = msg.get("content", "").strip()
         if content:
-            embedding = get_embedding(content)
-            metadata = {
-                "timestamp": msg.get("timestamp_virtual", current_time.isoformat()),
-                "role": msg["role"],
-                "content": content
-            }
-            add_to_faiss_index(run_data, embedding, metadata)
-
-    run_data["conversation_history"] = to_keep
+            try:
+                embedding = get_embedding(content)
+                metadata = {
+                    "timestamp": msg.get("timestamp_virtual", current_time.isoformat()),
+                    "role": msg["role"],
+                    "content": content
+                }
+                add_to_faiss_index(run_data, embedding, metadata)
+                print(f"Archived message {len(run_data['faiss_metadata'])} to vector storage")
+            except Exception as e:
+                print(f"Error archiving message: {str(e)}")
+    
+    # Update conversation history
+    run_data["conversation_history"] = messages_to_keep
 
 # ----------------------------------------------------------------------
 # RUN CREATION AND RESUME
@@ -622,8 +631,8 @@ def main_loop(run_id):
     print("\nInitiate conversation with AI. Press Ctrl+C to stop.\n")
     while not should_exit:
         try:
-            # Archives old memories
-            archive_old_memories(run_data)
+            # Archives old messages, keeping only last 50 + initial system message
+            archive_old_memories(run_data, max_messages=50)
             
             # Generates system message with date/time
             cur_time_str = run_data["current_time"].strftime('%Y-%m-%d %H:%M:%S')
