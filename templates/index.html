@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Prison - Logs</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .run-card {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .run-card:hover {
+            background: #f8f8f8;
+        }
+        .conversation {
+            display: none;
+            margin: 10px 0;
+            padding: 15px;
+            background: white;
+            border-radius: 5px;
+        }
+        .message {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .system { background: #e3f2fd; }
+        .assistant { background: #f5f5f5; }
+        .user { background: #e8f5e9; }
+        .function { background: #fff3e0; }
+        .timestamp {
+            font-size: 0.8em;
+            color: #666;
+        }
+        .view-button {
+            background: #4CAF50;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            float: right;
+            text-decoration: none;
+        }
+        .view-button:hover {
+            background: #45a049;
+        }
+        .loading {
+            display: none;
+            color: #666;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AI Prison - Conversation History</h1>
+        <div id="loading">Loading conversations...</div>
+        <div id="runs-list"></div>
+    </div>
+
+    <script>
+        async function fetchRuns() {
+            const loadingDiv = document.getElementById('loading');
+            const runsList = document.getElementById('runs-list');
+            
+            try {
+                loadingDiv.style.display = 'block';
+                const response = await fetch('/api/runs');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const runs = await response.json();
+                console.log('Runs loaded:', runs);
+                
+                if (runs.length === 0) {
+                    runsList.innerHTML = '<p>No conversations found.</p>';
+                    return;
+                }
+                
+                runsList.innerHTML = runs.map(run => `
+                    <div class="run-card">
+                        <a href="/view/${run.run_id}" class="view-button">
+                            View Conversation
+                        </a>
+                        <h3>Run ID: ${run.run_id}</h3>
+                        <p>Start: ${new Date(run.start_time).toLocaleString()}</p>
+                        <p>Model: ${run.model || 'N/A'}</p>
+                        <p>Temperature: ${typeof run.temperature === 'number' ? run.temperature.toFixed(2) : 'N/A'}</p>
+                        <p>Messages: ${run.message_count}</p>
+                        ${run.branch_from ? `<p>Branch from: ${run.branch_from}</p>` : ''}
+                    </div>
+                `).join('');
+
+            } catch (error) {
+                console.error('Error:', error);
+                runsList.innerHTML = `<p>Error loading conversations: ${error.message}</p>`;
+            } finally {
+                loadingDiv.style.display = 'none';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', fetchRuns);
+    </script>
+</body>
+</html> 

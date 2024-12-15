@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>AI Prison - Conversation View</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .run-info {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .message {
+            background: white;
+            margin: 10px 0;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .system { background: #e3f2fd; }
+        .assistant { background: #f5f5f5; }
+        .user { background: #e8f5e9; }
+        .function { background: #fff3e0; }
+        .timestamp {
+            font-size: 0.8em;
+            color: #666;
+        }
+        .back-button {
+            background: #4CAF50;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin-bottom: 20px;
+        }
+        .back-button:hover {
+            background: #45a049;
+        }
+        #messages-container {
+            margin-top: 20px;
+        }
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-width: 100%;
+            margin: 5px 0;
+        }
+        .error {
+            color: red;
+            padding: 10px;
+            background: #fee;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        #loadMoreBtn {
+            display: none;
+            margin: 20px auto;
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        #loadMoreBtn:hover {
+            background-color: #45a049;
+        }
+
+        #loadMoreBtn:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/" class="back-button">← Back to List</a>
+        <div id="loading">Loading conversation...</div>
+        <div id="error" class="error" style="display: none;"></div>
+        <div id="run-info"></div>
+        <div id="messages-container"></div>
+    </div>
+
+    <script>
+        const runId = window.location.pathname.split('/').pop();
+        const loadingDiv = document.getElementById('loading');
+        const errorDiv = document.getElementById('error');
+        const runInfoDiv = document.getElementById('run-info');
+        const messagesDiv = document.getElementById('messages-container');
+
+        async function loadConversation() {
+            try {
+                loadingDiv.style.display = 'block';
+                errorDiv.style.display = 'none';
+
+                const response = await fetch(`/api/runs/${runId}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+
+                // Mostra informações do run
+                runInfoDiv.className = 'run-info';
+                runInfoDiv.innerHTML = `
+                    <h2>Run ID: ${data.run_id}</h2>
+                    <p>Start: ${new Date(data.start_time).toLocaleString()}</p>
+                    <p>Current: ${new Date(data.current_time).toLocaleString()}</p>
+                    <p>Model: ${data.model || 'N/A'}</p>
+                    <p>Temperature: ${typeof data.temperature === 'number' ? data.temperature.toFixed(2) : 'N/A'}</p>
+                    ${data.branch_from ? `<p>Branch from: ${data.branch_from}</p>` : ''}
+                    <p>Total Messages: ${data.full_message_log.length}</p>
+                `;
+
+                // Adiciona mensagens
+                data.full_message_log.forEach(msg => {
+                    const messageDiv = document.createElement('div');
+                    messageDiv.className = `message ${msg.role}`;
+                    messageDiv.innerHTML = `
+                        <div class="timestamp">
+                            Virtual: ${new Date(msg.timestamp_virtual).toLocaleString()}
+                            Real: ${new Date(msg.timestamp_real).toLocaleString()}
+                        </div>
+                        <strong>${msg.role}</strong>
+                        ${msg.function_name ? `<br><em>Function: ${msg.function_name}</em>` : ''}
+                        <pre>${msg.content}</pre>
+                    `;
+                    messagesDiv.appendChild(messageDiv);
+                });
+
+            } catch (error) {
+                console.error('Error:', error);
+                errorDiv.style.display = 'block';
+                errorDiv.textContent = `Error loading conversation: ${error.message}`;
+            } finally {
+                loadingDiv.style.display = 'none';
+            }
+        }
+
+        // Carrega a conversa ao iniciar
+        loadConversation();
+    </script>
+</body>
+</html> 
