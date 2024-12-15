@@ -342,12 +342,49 @@ def resume_run(run_id):
 # ----------------------------------------------------------------------
 # (TOOLS) FOR FUNCTION CALLING
 # ----------------------------------------------------------------------
+def clean_code(code: str) -> str:
+    """
+    Robustly cleans Python code from markdown and other formatting.
+    Handles various cases like:
+    - Markdown code blocks (```python)
+    - Multiple code blocks in the same string
+    - Language tags
+    - Extra whitespace and indentation
+    
+    Args:
+        code: String containing the code, possibly with markdown/formatting
+        
+    Returns:
+        String containing only the clean Python code
+    """
+    if not code:
+        return ""
+        
+    # If code contains markdown blocks
+    if "```" in code:
+        blocks = code.split("```")
+        # Look for the block that contains actual code
+        for block in blocks:
+            # Remove language identifier and clean
+            cleaned = block.lstrip("python").lstrip("py").strip()
+            # If block contains valid Python syntax, return it
+            if any(keyword in cleaned for keyword in ["import ", "def ", "print", "=", "while ", "for ", "if "]):
+                return cleaned
+    
+    # If no markdown blocks or no valid code found, return stripped original
+    return code.strip()
+
 def run_code_tool(python_code: str) -> str:
-    """Executes Python code (fake or real) and returns the output as a string."""
+    """
+    Executes Python code (fake or real) and returns the output as string.
+    Now with markdown/formatting cleanup.
+    """
+    cleaned_code = clean_code(python_code)
+    
     if ALLOW_REAL_CODE_EXECUTION:
-        return run_code_real(python_code)
+        return run_code_real(cleaned_code)
     else:
-        return run_code_fake(python_code)
+        return run_code_fake(cleaned_code)
 
 def run_code_real(code: str) -> str:
     """
